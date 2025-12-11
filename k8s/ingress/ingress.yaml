@@ -1,0 +1,81 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: petclinic-ingress
+  namespace: petclinic
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "Content-Type, Authorization"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: petclinic.local
+      http:
+        paths:
+          # API Gateway - handles aggregation + UI
+          - path: /api/gateway(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: api-gateway
+                port:
+                  number: 8080
+          # Customers Service direct access
+          - path: /api/customer(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: customers-service
+                port:
+                  number: 8081
+          # Vets Service direct access
+          - path: /api/vet(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: vets-service
+                port:
+                  number: 8083
+          # Visits Service direct access
+          - path: /api/visit(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: visits-service
+                port:
+                  number: 8082
+          # GenAI Service
+          - path: /api/genai(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: genai-service
+                port:
+                  number: 8084
+          # Zipkin UI
+          - path: /zipkin(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: tracing-server
+                port:
+                  number: 9411
+          # Grafana UI
+          - path: /grafana(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: grafana
+                port:
+                  number: 3000
+          # Default - Frontend UI served by API Gateway
+          - path: /(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: api-gateway
+                port:
+                  number: 8080

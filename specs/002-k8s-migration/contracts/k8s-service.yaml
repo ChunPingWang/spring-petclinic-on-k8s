@@ -1,0 +1,36 @@
+# K8s Service Contract
+# This schema defines the expected structure for service resources
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: <service-name>
+  namespace: petclinic
+  labels:
+    app: <service-name>
+    component: business-service | infrastructure
+spec:
+  type: ClusterIP
+  selector:
+    app: <service-name>
+  ports:
+  - port: <service-port>
+    targetPort: http
+    protocol: TCP
+    name: http
+
+---
+# Service Registry (DNS names available in cluster)
+# Format: <service-name>.<namespace>.svc.cluster.local
+
+# Business Services:
+# - customers-service.petclinic.svc.cluster.local:8081
+# - vets-service.petclinic.svc.cluster.local:8083
+# - visits-service.petclinic.svc.cluster.local:8082
+# - api-gateway.petclinic.svc.cluster.local:8080
+# - genai-service.petclinic.svc.cluster.local:8084
+
+# Infrastructure Services:
+# - tracing-server.petclinic.svc.cluster.local:9411
+# - prometheus.petclinic.svc.cluster.local:9090
+# - grafana.petclinic.svc.cluster.local:3000

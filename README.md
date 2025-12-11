@@ -4,63 +4,185 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 This microservices branch was initially derived from [AngularJS version](https://github.com/spring-petclinic/spring-petclinic-angular1) to demonstrate how to split sample Spring application into [microservices](http://www.martinfowler.com/articles/microservices.html).
-To achieve that goal, we use Spring Cloud Gateway, Spring Cloud Circuit Breaker, Spring Cloud Config, Micrometer Tracing, Resilience4j, Open Telemetry 
-and the Eureka Service Discovery from the [Spring Cloud Netflix](https://github.com/spring-cloud/spring-cloud-netflix) technology stack.
+To achieve that goal, we use Spring Cloud Gateway, Spring Cloud Circuit Breaker, Micrometer Tracing, Resilience4j, and Open Telemetry.
+
+> **Note**: This branch supports **Kubernetes-native deployment**. Spring Cloud Config Server, Eureka Discovery Server, and Admin Server have been removed in favor of Kubernetes-native solutions (ConfigMap/Secret, K8s Service Discovery, Prometheus + Grafana).
 
 [![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://codespaces.new/spring-petclinic/spring-petclinic-microservices)
 
 [![Open in Codeanywhere](https://codeanywhere.com/img/open-in-codeanywhere-btn.svg)](https://app.codeanywhere.com/#https://github.com/spring-petclinic/spring-petclinic-microservices)
 
+## Deploying to Kubernetes (Recommended)
+
+This application is designed to run on Kubernetes. The K8s manifests are located in the `k8s/` directory.
+
+### Prerequisites
+
+- Kubernetes cluster (kind, minikube, Docker Desktop, or cloud provider)
+- kubectl CLI configured
+- NGINX Ingress Controller installed
+
+### Quick Start with Kind
+
+```bash
+# Create a kind cluster with ingress support
+cat <<EOF | kind create cluster --config=-
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+nodes:
+  - role: control-plane
+    kubeadmConfigPatches:
+      - |
+        kind: InitConfiguration
+        nodeRegistration:
+          kubeletExtraArgs:
+            node-labels: "ingress-ready=true"
+    extraPortMappings:
+      - containerPort: 80
+        hostPort: 80
+        protocol: TCP
+      - containerPort: 443
+        hostPort: 443
+        protocol: TCP
+EOF
+
+# Install NGINX Ingress Controller
+kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
+kubectl wait --namespace ingress-nginx --for=condition=ready pod --selector=app.kubernetes.io/component=controller --timeout=90s
+```
+
+### Build and Deploy
+
+```bash
+# Build Docker images for all services
+./mvnw clean spring-boot:build-image -pl spring-petclinic-customers-service -DskipTests
+./mvnw clean spring-boot:build-image -pl spring-petclinic-vets-service -DskipTests
+./mvnw clean spring-boot:build-image -pl spring-petclinic-visits-service -DskipTests
+./mvnw clean spring-boot:build-image -pl spring-petclinic-api-gateway -DskipTests
+
+# Load images into kind cluster
+kind load docker-image petclinic/customers-service:latest
+kind load docker-image petclinic/vets-service:latest
+kind load docker-image petclinic/visits-service:latest
+kind load docker-image petclinic/api-gateway:latest
+
+# Deploy to Kubernetes (dev environment)
+kubectl apply -k k8s/overlays/dev
+
+# Wait for pods to be ready
+kubectl wait --namespace petclinic --for=condition=ready pod --all --timeout=300s
+```
+
+### Access the Application
+
+Add the following to your `/etc/hosts` file:
+```
+127.0.0.1 petclinic.local
+```
+
+Then access:
+- **Frontend UI**: http://petclinic.local/
+- **Customers API**: http://petclinic.local/api/customer/owners
+- **Vets API**: http://petclinic.local/api/vet/vets
+- **Visits API**: http://petclinic.local/api/visit/pets/visits?petId=1
+- **Zipkin Tracing**: http://petclinic.local/zipkin
+- **Grafana**: http://petclinic.local/grafana (admin/admin)
+- **Prometheus**: Port-forward with `kubectl port-forward -n petclinic svc/prometheus 9090:9090`
+
+### Kubernetes Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    NGINX Ingress Controller                  │
+└─────────────────────────────────────────────────────────────┘
+                              │
+        ┌─────────────────────┼─────────────────────┐
+        │                     │                     │
+        ▼                     ▼                     ▼
+┌───────────────┐   ┌───────────────┐   ┌───────────────┐
+│  API Gateway  │   │   Customers   │   │     Vets      │
+│    :8080      │   │    Service    │   │    Service    │
+└───────────────┘   │    :8081      │   │    :8083      │
+        │           └───────────────┘   └───────────────┘
+        │                     │
+        │           ┌───────────────┐   ┌───────────────┐
+        │           │    Visits     │   │    GenAI      │
+        │           │    Service    │   │    Service    │
+        │           │    :8082      │   │    :8084      │
+        │           └───────────────┘   └───────────────┘
+        │                     │
+        ▼                     ▼
+┌───────────────┐   ┌───────────────┐   ┌───────────────┐
+│     MySQL     │   │   Prometheus  │   │    Grafana    │
+│    :3306      │   │    :9090      │   │    :3000      │
+└───────────────┘   └───────────────┘   └───────────────┘
+                            │
+                    ┌───────────────┐
+                    │    Zipkin     │
+                    │    :9411      │
+                    └───────────────┘
+```
+
+### K8s Directory Structure
+
+```
+k8s/
+├── base/                    # Base manifests (namespace, configmap, secret)
+├── services/                # Service deployments
+│   ├── api-gateway/
+│   ├── customers-service/
+│   ├── vets-service/
+│   ├── visits-service/
+│   ├── genai-service/
+│   ├── tracing-server/
+│   └── mysql/
+├── monitoring/              # Prometheus + Grafana
+│   ├── prometheus/
+│   └── grafana/
+├── ingress/                 # Ingress configuration
+└── overlays/                # Kustomize overlays
+    ├── dev/                 # Development environment
+    └── prod/                # Production environment
+```
+
 ## Starting services locally without Docker
 
 Every microservice is a Spring Boot application and can be started locally using IDE or `../mvnw spring-boot:run` command.
-Please note that supporting services (Config and Discovery Server) must be started before any other application (Customers, Vets, Visits and API).
-Startup of Tracing server, Admin server, Grafana and Prometheus is optional.
+Services can be started independently without any infrastructure dependencies (Config Server and Discovery Server have been removed).
+
 If everything goes well, you can access the following services at given location:
-* Discovery Server - http://localhost:8761
-* Config Server - http://localhost:8888
 * AngularJS frontend (API Gateway) - http://localhost:8080
-* Customers, Vets, Visits and GenAI Services - random port, check Eureka Dashboard 
+* Customers Service - http://localhost:8081
+* Visits Service - http://localhost:8082
+* Vets Service - http://localhost:8083
+* GenAI Service - http://localhost:8084 (requires OpenAI API key)
 * Tracing Server (Zipkin) - http://localhost:9411/zipkin/ (we use [openzipkin](https://github.com/openzipkin/zipkin/tree/main/zipkin-server))
-* Admin Server (Spring Boot Admin) - http://localhost:9090
 * Grafana Dashboards - http://localhost:3030
 * Prometheus - http://localhost:9091
 
-You can tell Config Server to use your local Git repository by using `native` Spring profile and setting
-`GIT_REPO` environment variable, for example:
-`-Dspring.profiles.active=native -DGIT_REPO=/projects/spring-petclinic-microservices-config`
+Configuration is managed via environment variables or `application.yml` files in each service.
 
 ## Starting services locally with docker-compose
-In order to start entire infrastructure using Docker, you have to build images by executing
-``bash
-./mvnw clean install -P buildDocker
-``
-This requires `Docker` or `Docker desktop` to be installed and running.
 
-Alternatively you can also build all the images on `Podman`, which requires Podman or Podman Desktop to be installed and running.
+Build images using Spring Boot's build-image plugin:
 ```bash
-./mvnw clean install -PbuildDocker -Dcontainer.executable=podman
-```
-By default, the Docker OCI image is build for an `linux/amd64` platform.
-For other architectures, you could change it by using the `-Dcontainer.platform` maven command line argument.
-For instance, if you target container images for an Apple M2, you could use the command line with the `linux/arm64` architecture:
-```bash
-./mvnw clean install -P buildDocker -Dcontainer.platform="linux/arm64"
+./mvnw clean spring-boot:build-image -DskipTests
 ```
 
-Once images are ready, you can start them with a single command
-`docker compose up` or `podman-compose up`. 
+This requires Docker to be installed and running. Once images are ready, start them with:
+```bash
+docker compose up
+```
 
-Containers startup order is coordinated with the `service_healthy` condition of the Docker Compose [depends-on](https://github.com/compose-spec/compose-spec/blob/main/spec.md#depends_on) expression 
-and the [healthcheck](https://github.com/compose-spec/compose-spec/blob/main/spec.md#healthcheck) of the service containers. 
-After starting services, it takes a while for API Gateway to be in sync with service registry,
-so don't be scared of initial Spring Cloud Gateway timeouts. You can track services availability using Eureka dashboard
-available by default at http://localhost:8761.
+The docker-compose setup includes:
+- MySQL database
+- All business services (customers, vets, visits, api-gateway, genai)
+- Zipkin tracing server
+- Prometheus and Grafana for monitoring
 
-The `main` branch uses an Eclipse Temurin with Java 17 as Docker base image.
+Services will connect to each other using Docker's internal DNS. No Config Server or Discovery Server is required.
 
-*NOTE: Under MacOSX or Windows, make sure that the Docker VM has enough memory to run the microservices. The default settings
-are usually not enough and make the `docker-compose up` painfully slow.*
+*NOTE: Under MacOSX or Windows, make sure that the Docker VM has enough memory (at least 4GB) to run the microservices.*
 
 
 ## Starting services locally with docker-compose and Java
@@ -79,13 +201,19 @@ You can then access petclinic here: http://localhost:8080/
 ## Microservices Overview
 
 This project consists of several microservices:
-- **Customers Service**: Manages customer data.
-- **Vets Service**: Handles information about veterinarians.
-- **Visits Service**: Manages pet visit records.
-- **GenAI Service**: Provides a chatbot interface to the application.
-- **API Gateway**: Routes client requests to the appropriate services.
-- **Config Server**: Centralized configuration management for all services.
-- **Discovery Server**: Eureka-based service registry.
+- **Customers Service**: Manages customer and pet data (port 8081)
+- **Vets Service**: Handles information about veterinarians (port 8083)
+- **Visits Service**: Manages pet visit records (port 8082)
+- **GenAI Service**: Provides a chatbot interface to the application (port 8084)
+- **API Gateway**: Routes client requests and serves the frontend UI (port 8080)
+
+Infrastructure services (deployed separately):
+- **MySQL**: Database for persistent storage
+- **Zipkin**: Distributed tracing
+- **Prometheus**: Metrics collection
+- **Grafana**: Metrics visualization
+
+> **Note**: Config Server, Discovery Server, and Admin Server have been removed. Configuration is managed via environment variables/K8s ConfigMaps, service discovery via K8s Services, and monitoring via Prometheus + Grafana.
 
 Each service has its own specific role and communicates via REST APIs.
 
@@ -202,14 +330,14 @@ All those three REST controllers `OwnerResource`, `PetResource` and `VisitResour
 
 ## Looking for something in particular?
 
-| Spring Cloud components         | Resources  |
+| Component                       | Resources  |
 |---------------------------------|------------|
-| Configuration server            | [Config server properties](spring-petclinic-config-server/src/main/resources/application.yml) and [Configuration repository] |
-| Service Discovery               | [Eureka server](spring-petclinic-discovery-server) and [Service discovery client](spring-petclinic-vets-service/src/main/java/org/springframework/samples/petclinic/vets/VetsServiceApplication.java) |
-| API Gateway                     | [Spring Cloud Gateway starter](spring-petclinic-api-gateway/pom.xml) and [Routing configuration](/spring-petclinic-api-gateway/src/main/resources/application.yml) |
+| Kubernetes Deployment           | [K8s manifests](k8s/) and [Kustomize overlays](k8s/overlays/) |
+| API Gateway                     | [Spring Cloud Gateway starter](spring-petclinic-api-gateway/pom.xml) and [Configuration](/spring-petclinic-api-gateway/src/main/resources/application.yml) |
 | Docker Compose                  | [Spring Boot with Docker guide](https://spring.io/guides/gs/spring-boot-docker/) and [docker-compose file](docker-compose.yml) |
 | Circuit Breaker                 | [Resilience4j fallback method](spring-petclinic-api-gateway/src/main/java/org/springframework/samples/petclinic/api/boundary/web/ApiGatewayController.java)  |
-| Grafana / Prometheus Monitoring | [Micrometer implementation](https://micrometer.io/), [Spring Boot Actuator Production Ready Metrics] |
+| Grafana / Prometheus Monitoring | [Micrometer implementation](https://micrometer.io/), [K8s monitoring manifests](k8s/monitoring/) |
+| Distributed Tracing             | [Zipkin deployment](k8s/services/tracing-server/) and [Micrometer Tracing](https://micrometer.io/docs/tracing) |
 
 |  Front-end module | Files |
 |-------------------|-------|
@@ -220,13 +348,7 @@ All those three REST controllers `OwnerResource`, `PetResource` and `VisitResour
 
 ## Pushing to a Docker registry
 
-Docker images for `linux/amd64` and `linux/arm64` platforms have been published into DockerHub 
-in the [springcommunity](https://hub.docker.com/u/springcommunity) organization.
-You can pull an image:
-```bash
-docker pull springcommunity/spring-petclinic-config-server
-```
-You may prefer to build then push images to your own Docker registry.
+You can build and push images to your own Docker registry for Kubernetes deployment.
 
 ### Choose your Docker registry
 

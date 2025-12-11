@@ -1,0 +1,94 @@
+# K8s Ingress Contract
+# This schema defines the expected structure for ingress routing
+
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: petclinic-ingress
+  namespace: petclinic
+  annotations:
+    # NGINX Ingress Controller annotations
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/enable-cors: "true"
+    nginx.ingress.kubernetes.io/cors-allow-origin: "*"
+    nginx.ingress.kubernetes.io/cors-allow-methods: "GET, POST, PUT, DELETE, OPTIONS"
+    nginx.ingress.kubernetes.io/cors-allow-headers: "Content-Type, Authorization"
+    # SSL redirect (production)
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  ingressClassName: nginx
+  rules:
+  - host: <hostname>  # e.g., petclinic.local or petclinic.example.com
+    http:
+      paths:
+      # API Gateway handles aggregation + UI
+      - path: /api/customer
+        pathType: Prefix
+        backend:
+          service:
+            name: api-gateway
+            port:
+              number: 8080
+      # Direct service routes
+      - path: /api/vet
+        pathType: Prefix
+        backend:
+          service:
+            name: vets-service
+            port:
+              number: 8083
+      - path: /api/visit
+        pathType: Prefix
+        backend:
+          service:
+            name: visits-service
+            port:
+              number: 8082
+      - path: /api/genai
+        pathType: Prefix
+        backend:
+          service:
+            name: genai-service
+            port:
+              number: 8084
+      # Monitoring UIs (optional, dev only)
+      - path: /zipkin
+        pathType: Prefix
+        backend:
+          service:
+            name: tracing-server
+            port:
+              number: 9411
+      - path: /grafana
+        pathType: Prefix
+        backend:
+          service:
+            name: grafana
+            port:
+              number: 3000
+      # Default: UI served by API Gateway
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: api-gateway
+            port:
+              number: 8080
+  # TLS configuration (production)
+  tls:
+  - hosts:
+    - <hostname>
+    secretName: petclinic-tls
+
+---
+# Route Summary
+#
+# | Path           | Service          | Port | Description              |
+# |----------------|------------------|------|--------------------------|
+# | /api/customer  | api-gateway      | 8080 | Owner + Pets aggregation |
+# | /api/vet       | vets-service     | 8083 | Veterinarians API        |
+# | /api/visit     | visits-service   | 8082 | Visits API               |
+# | /api/genai     | genai-service    | 8084 | AI Chat API              |
+# | /zipkin        | tracing-server   | 9411 | Distributed tracing UI   |
+# | /grafana       | grafana          | 3000 | Monitoring dashboard     |
+# | /              | api-gateway      | 8080 | Frontend UI              |

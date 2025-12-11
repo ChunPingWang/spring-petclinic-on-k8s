@@ -16,14 +16,17 @@
     <packaging>pom</packaging>
 
     <modules>
-        <module>spring-petclinic-admin-server</module>
+        <!-- Business Services -->
         <module>spring-petclinic-customers-service</module>
         <module>spring-petclinic-vets-service</module>
         <module>spring-petclinic-visits-service</module>
         <module>spring-petclinic-genai-service</module>
-        <module>spring-petclinic-config-server</module>
-        <module>spring-petclinic-discovery-server</module>
         <module>spring-petclinic-api-gateway</module>
+        <!-- Removed for K8s migration:
+             - spring-petclinic-admin-server (replaced by Prometheus + Grafana)
+             - spring-petclinic-config-server (replaced by K8s ConfigMap/Secret)
+             - spring-petclinic-discovery-server (replaced by K8s Service Discovery)
+        -->
     </modules>
 
     <properties>

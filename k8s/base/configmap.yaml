@@ -1,0 +1,35 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: petclinic-config
+  namespace: petclinic
+  labels:
+    app.kubernetes.io/name: petclinic
+    app.kubernetes.io/managed-by: kustomize
+data:
+  # Spring Profiles
+  SPRING_PROFILES_ACTIVE: "kubernetes"
+
+  # Database configuration (MySQL)
+  SPRING_DATASOURCE_URL: "jdbc:mysql://mysql:3306/petclinic"
+  SPRING_JPA_HIBERNATE_DDL_AUTO: "update"
+
+  # Service Discovery - K8s Service DNS names
+  CUSTOMERS_SERVICE_URL: "http://customers-service:8081"
+  VETS_SERVICE_URL: "http://vets-service:8083"
+  VISITS_SERVICE_URL: "http://visits-service:8082"
+  GENAI_SERVICE_URL: "http://genai-service:8084"
+
+  # Tracing configuration (Zipkin)
+  MANAGEMENT_ZIPKIN_TRACING_ENDPOINT: "http://tracing-server:9411/api/v2/spans"
+  MANAGEMENT_TRACING_SAMPLING_PROBABILITY: "1.0"
+
+  # Logging configuration
+  LOGGING_LEVEL_ROOT: "INFO"
+  LOGGING_LEVEL_ORG_SPRINGFRAMEWORK: "INFO"
+
+  # Actuator endpoints
+  MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE: "health,info,prometheus,metrics"
+  MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED: "true"
+  MANAGEMENT_HEALTH_LIVENESSSTATE_ENABLED: "true"
+  MANAGEMENT_HEALTH_READINESSSTATE_ENABLED: "true"

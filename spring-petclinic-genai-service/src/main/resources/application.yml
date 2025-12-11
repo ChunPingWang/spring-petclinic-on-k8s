@@ -3,10 +3,6 @@ spring:
     web-application-type: reactive
   application:
     name: genai-service
-  profiles:
-    active: production
-  config:
-    import: optional:configserver:${CONFIG_SERVER_URL:http://localhost:8888/},optional:classpath:/creds.yaml
   ai:
     chat:
       client:
@@ -14,8 +10,8 @@ spring:
     # These apply when using spring-ai-azure-openai-spring-boot-starter
     azure:
       openai:
-        api-key: ${AZURE_OPENAI_KEY}
-        endpoint: ${AZURE_OPENAI_ENDPOINT}
+        api-key: ${AZURE_OPENAI_KEY:}
+        endpoint: ${AZURE_OPENAI_ENDPOINT:}
         chat:
           options:
             temperature: 0.7
@@ -25,9 +21,15 @@ spring:
       api-key: ${OPENAI_API_KEY:demo}
       chat:
         options:
-            temperature: 0.7
-            model: gpt-4o-mini
+          temperature: 0.7
+          model: gpt-4o-mini
 
+# GenAI Service offline mode - when true, returns fixed message without calling OpenAI
+genai:
+  offline-mode: ${GENAI_OFFLINE_MODE:true}
+
+server:
+  port: ${SERVER_PORT:8084}
 
 logging:
   level:
@@ -37,9 +39,47 @@ logging:
           chat:
             client:
               advisor: DEBUG
+
+# Actuator endpoints for K8s health checks
+management:
+  endpoints:
+    web:
+      exposure:
+        include: ${MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE:health,info,prometheus,metrics}
+  endpoint:
+    health:
+      probes:
+        enabled: ${MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED:true}
+  health:
+    livenessState:
+      enabled: ${MANAGEMENT_HEALTH_LIVENESSSTATE_ENABLED:true}
+    readinessState:
+      enabled: ${MANAGEMENT_HEALTH_READINESSSTATE_ENABLED:true}
+  zipkin:
+    tracing:
+      endpoint: ${MANAGEMENT_ZIPKIN_TRACING_ENDPOINT:http://localhost:9411/api/v2/spans}
+  tracing:
+    sampling:
+      probability: ${MANAGEMENT_TRACING_SAMPLING_PROBABILITY:1.0}
+
 ---
 spring:
   config:
     activate:
       on-profile: docker
-    import: configserver:http://config-server:8888
+
+management:
+  zipkin:
+    tracing:
+      endpoint: http://tracing-server:9411/api/v2/spans
+
+---
+spring:
+  config:
+    activate:
+      on-profile: kubernetes
+
+management:
+  zipkin:
+    tracing:
+      endpoint: ${MANAGEMENT_ZIPKIN_TRACING_ENDPOINT:http://tracing-server:9411/api/v2/spans}

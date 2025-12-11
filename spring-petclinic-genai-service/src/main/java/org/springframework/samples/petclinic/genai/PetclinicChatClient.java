@@ -8,6 +8,7 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -24,11 +25,16 @@ public class PetclinicChatClient {
 
     private static final Logger LOG = LoggerFactory.getLogger(PetclinicChatClient.class);
 
+    private static final String OFFLINE_MESSAGE = "服務暫時離線";
+
 	// ChatModel is the primary interfaces for interacting with an LLM
 	// it is a request/response interface that implements the ModelModel
 	// interface. Make suer to visit the source code of the ChatModel and
 	// checkout the interfaces in the core Spring AI package.
 	private final ChatClient chatClient;
+
+	@Value("${genai.offline-mode:false}")
+	private boolean offlineMode;
 
 	public PetclinicChatClient(ChatClient.Builder builder, ChatMemory chatMemory) {
 		// @formatter:off
@@ -55,6 +61,12 @@ public class PetclinicChatClient {
 
   @PostMapping("/chatclient")
   public String exchange(@RequestBody String query) {
+	  // Return offline message when offline mode is enabled
+	  if (offlineMode) {
+		  LOG.info("GenAI service is in offline mode, returning offline message");
+		  return OFFLINE_MESSAGE;
+	  }
+
 	  try {
 		  //All chatbot messages go through this endpoint
 		  //and are passed to the LLM
@@ -69,7 +81,7 @@ public class PetclinicChatClient {
 	      .content();
 	  } catch (Exception exception) {
           LOG.error("Error processing chat message", exception);
- 	      return "Chat is currently unavailable. Please try again later.";
+ 	      return OFFLINE_MESSAGE;
 	  }
   }
 }

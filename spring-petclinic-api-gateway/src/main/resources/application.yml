@@ -1,8 +1,6 @@
 spring:
   application:
     name: api-gateway
-  config:
-    import: optional:configserver:${CONFIG_SERVER_URL:http://localhost:8888/}
   cloud:
     gateway:
       default-filters:
@@ -17,34 +15,130 @@ spring:
             methods: POST
       routes:
         - id: vets-service
-          uri: lb://vets-service
+          uri: ${VETS_SERVICE_URL:http://localhost:8083}
           predicates:
             - Path=/api/vet/**
           filters:
             - StripPrefix=2
         - id: visits-service
-          uri: lb://visits-service
+          uri: ${VISITS_SERVICE_URL:http://localhost:8082}
           predicates:
             - Path=/api/visit/**
           filters:
             - StripPrefix=2
         - id: customers-service
-          uri: lb://customers-service
+          uri: ${CUSTOMERS_SERVICE_URL:http://localhost:8081}
           predicates:
             - Path=/api/customer/**
           filters:
             - StripPrefix=2
         - id: genai-service
-          uri: lb://genai-service
+          uri: ${GENAI_SERVICE_URL:http://localhost:8084}
           predicates:
             - Path=/api/genai/**
           filters:
             - StripPrefix=2
             - CircuitBreaker=name=genaiCircuitBreaker,fallbackUri=/fallback
 
+server:
+  port: ${SERVER_PORT:8080}
+
+# Actuator endpoints for K8s health checks
+management:
+  endpoints:
+    web:
+      exposure:
+        include: ${MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE:health,info,prometheus,metrics}
+  endpoint:
+    health:
+      probes:
+        enabled: ${MANAGEMENT_ENDPOINT_HEALTH_PROBES_ENABLED:true}
+  health:
+    livenessState:
+      enabled: ${MANAGEMENT_HEALTH_LIVENESSSTATE_ENABLED:true}
+    readinessState:
+      enabled: ${MANAGEMENT_HEALTH_READINESSSTATE_ENABLED:true}
+  zipkin:
+    tracing:
+      endpoint: ${MANAGEMENT_ZIPKIN_TRACING_ENDPOINT:http://localhost:9411/api/v2/spans}
+  tracing:
+    sampling:
+      probability: ${MANAGEMENT_TRACING_SAMPLING_PROBABILITY:1.0}
+
 ---
 spring:
   config:
     activate:
       on-profile: docker
-    import: configserver:http://config-server:8888
+  cloud:
+    gateway:
+      routes:
+        - id: vets-service
+          uri: http://vets-service:8083
+          predicates:
+            - Path=/api/vet/**
+          filters:
+            - StripPrefix=2
+        - id: visits-service
+          uri: http://visits-service:8082
+          predicates:
+            - Path=/api/visit/**
+          filters:
+            - StripPrefix=2
+        - id: customers-service
+          uri: http://customers-service:8081
+          predicates:
+            - Path=/api/customer/**
+          filters:
+            - StripPrefix=2
+        - id: genai-service
+          uri: http://genai-service:8084
+          predicates:
+            - Path=/api/genai/**
+          filters:
+            - StripPrefix=2
+            - CircuitBreaker=name=genaiCircuitBreaker,fallbackUri=/fallback
+
+management:
+  zipkin:
+    tracing:
+      endpoint: http://tracing-server:9411/api/v2/spans
+
+---
+spring:
+  config:
+    activate:
+      on-profile: kubernetes
+  cloud:
+    gateway:
+      routes:
+        - id: vets-service
+          uri: ${VETS_SERVICE_URL:http://vets-service:8083}
+          predicates:
+            - Path=/api/vet/**
+          filters:
+            - StripPrefix=2
+        - id: visits-service
+          uri: ${VISITS_SERVICE_URL:http://visits-service:8082}
+          predicates:
+            - Path=/api/visit/**
+          filters:
+            - StripPrefix=2
+        - id: customers-service
+          uri: ${CUSTOMERS_SERVICE_URL:http://customers-service:8081}
+          predicates:
+            - Path=/api/customer/**
+          filters:
+            - StripPrefix=2
+        - id: genai-service
+          uri: ${GENAI_SERVICE_URL:http://genai-service:8084}
+          predicates:
+            - Path=/api/genai/**
+          filters:
+            - StripPrefix=2
+            - CircuitBreaker=name=genaiCircuitBreaker,fallbackUri=/fallback
+
+management:
+  zipkin:
+    tracing:
+      endpoint: ${MANAGEMENT_ZIPKIN_TRACING_ENDPOINT:http://tracing-server:9411/api/v2/spans}

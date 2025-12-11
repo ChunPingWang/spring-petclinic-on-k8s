@@ -15,6 +15,7 @@
  */
 package org.springframework.samples.petclinic.api.application;
 
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.samples.petclinic.api.dto.OwnerDetails;
 import org.springframework.stereotype.Component;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -27,14 +28,17 @@ import reactor.core.publisher.Mono;
 public class CustomersServiceClient {
 
     private final WebClient.Builder webClientBuilder;
+    private final String customersServiceUrl;
 
-    public CustomersServiceClient(WebClient.Builder webClientBuilder) {
+    public CustomersServiceClient(WebClient.Builder webClientBuilder,
+                                  @Value("${CUSTOMERS_SERVICE_URL:http://customers-service:8081}") String customersServiceUrl) {
         this.webClientBuilder = webClientBuilder;
+        this.customersServiceUrl = customersServiceUrl;
     }
 
     public Mono<OwnerDetails> getOwner(final int ownerId) {
         return webClientBuilder.build().get()
-            .uri("http://customers-service/owners/{ownerId}", ownerId)
+            .uri(customersServiceUrl + "/owners/{ownerId}", ownerId)
             .retrieve()
             .bodyToMono(OwnerDetails.class);
     }

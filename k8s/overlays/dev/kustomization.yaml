@@ -1,0 +1,36 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: petclinic
+
+resources:
+  # Base configuration
+  - ../../base
+  # Database
+  - ../../services/mysql
+  # Business services
+  - ../../services/customers-service
+  - ../../services/vets-service
+  - ../../services/visits-service
+  - ../../services/api-gateway
+  - ../../services/genai-service
+  # Infrastructure services
+  - ../../services/tracing-server
+  - ../../monitoring/prometheus
+  - ../../monitoring/grafana
+  # Ingress
+  - ../../ingress
+
+labels:
+  - pairs:
+      environment: dev
+
+# Dev environment: 1 replica, lower resources
+patches:
+  # Reduce replicas for dev
+  - patch: |-
+      - op: replace
+        path: /spec/replicas
+        value: 1
+    target:
+      kind: Deployment

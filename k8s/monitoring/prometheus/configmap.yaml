@@ -1,0 +1,65 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: prometheus-config
+  namespace: petclinic
+  labels:
+    app: prometheus
+    component: infrastructure
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+
+    scrape_configs:
+      # Prometheus self-monitoring
+      - job_name: 'prometheus'
+        static_configs:
+          - targets: ['localhost:9090']
+
+      # PetClinic services - scrape actuator/prometheus endpoints
+      - job_name: 'petclinic-services'
+        metrics_path: '/actuator/prometheus'
+        static_configs:
+          - targets:
+              - 'customers-service:8081'
+              - 'vets-service:8083'
+              - 'visits-service:8082'
+              - 'api-gateway:8080'
+              - 'genai-service:8084'
+
+      # Kubernetes pod discovery (optional - for auto-discovery)
+      - job_name: 'kubernetes-pods'
+        kubernetes_sd_configs:
+          - role: pod
+            namespaces:
+              names:
+                - petclinic
+        relabel_configs:
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+            action: keep
+            regex: true
+          - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+            action: replace
+            regex: ([^:]+)(?::\d+)?;(\d+)
+            replacement: $1:$2
+            target_label: __address__
+          - action: labelmap
+            regex: __meta_kubernetes_pod_label_(.+)
+          - source_labels: [__meta_kubernetes_namespace]
+            action: replace
+            target_label: kubernetes_namespace
+          - source_labels: [__meta_kubernetes_pod_name]
+            action: replace
+            target_label: kubernetes_pod_name
+
+      # Zipkin tracing server
+      - job_name: 'zipkin'
+        metrics_path: '/prometheus'
+        static_configs:
+          - targets: ['tracing-server:9411']
