@@ -1,32 +1,32 @@
-# Spring PetClinic Microservices on Kubernetes
+# Spring PetClinic 微服務 - Kubernetes 版本
 
-[![Build Status](https://github.com/ChunPingWang/spring-petclinic-on-k8s/actions/workflows/maven-build.yml/badge.svg)](https://github.com/ChunPingWang/spring-petclinic-on-k8s/actions/workflows/maven-build.yml)
-[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![建置狀態](https://github.com/ChunPingWang/spring-petclinic-on-k8s/actions/workflows/maven-build.yml/badge.svg)](https://github.com/ChunPingWang/spring-petclinic-on-k8s/actions/workflows/maven-build.yml)
+[![授權條款](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-A **Kubernetes-native** version of the Spring PetClinic microservices application. This project demonstrates how to deploy a production-ready microservices architecture on Kubernetes with modern cloud-native technologies.
+這是 Spring PetClinic 微服務應用程式的 **Kubernetes 原生版本**。本專案展示如何在 Kubernetes 上部署具備生產環境等級的微服務架構，並採用現代雲原生技術。
 
-> **Key Changes from Original**: Spring Cloud Config Server, Eureka Discovery Server, and Admin Server have been **removed** in favor of Kubernetes-native solutions (ConfigMap/Secret, K8s DNS Service Discovery, Prometheus + Grafana).
+> **與原版的主要差異**：Spring Cloud Config Server、Eureka Discovery Server 和 Admin Server 已被**移除**，改用 Kubernetes 原生解決方案（ConfigMap/Secret、K8s DNS 服務發現、Prometheus + Grafana）。
 
-## Table of Contents
+## 目錄
 
-- [Architecture Overview](#architecture-overview)
-- [Technology Stack](#technology-stack)
-- [Project Structure](#project-structure)
-- [Quick Start](#quick-start)
-  - [Prerequisites](#prerequisites)
-  - [Deploy to Kubernetes (Recommended)](#deploy-to-kubernetes-recommended)
-  - [Run with Docker Compose](#run-with-docker-compose)
-  - [Run Locally without Docker](#run-locally-without-docker)
-- [Kubernetes Deployment Guide](#kubernetes-deployment-guide)
-- [CI/CD Pipeline](#cicd-pipeline)
-- [Monitoring and Observability](#monitoring-and-observability)
-- [GenAI Chatbot Integration](#genai-chatbot-integration)
-- [API Reference](#api-reference)
-- [Troubleshooting](#troubleshooting)
+- [架構概覽](#架構概覽)
+- [技術堆疊](#技術堆疊)
+- [專案結構](#專案結構)
+- [快速開始](#快速開始)
+  - [環境需求](#環境需求)
+  - [部署到 Kubernetes（建議方式）](#部署到-kubernetes建議方式)
+  - [使用 Docker Compose 執行](#使用-docker-compose-執行)
+  - [本機執行（不使用 Docker）](#本機執行不使用-docker)
+- [Kubernetes 部署指南](#kubernetes-部署指南)
+- [CI/CD 流水線](#cicd-流水線)
+- [監控與可觀測性](#監控與可觀測性)
+- [GenAI 聊天機器人整合](#genai-聊天機器人整合)
+- [API 參考文件](#api-參考文件)
+- [疑難排解](#疑難排解)
 
 ---
 
-## Architecture Overview
+## 架構概覽
 
 ```
                          ┌─────────────────────────────────────────┐
@@ -48,60 +48,60 @@ A **Kubernetes-native** version of the Spring PetClinic microservices applicatio
          ▼                                ▼                               ▼
    ┌───────────┐                   ┌───────────┐                   ┌───────────┐
    │  Zipkin   │◄──────────────────│   MySQL   │                   │  OpenAI   │
-   │  :9411    │    Tracing        │   :3306   │                   │   API     │
+   │  :9411    │    追蹤           │   :3306   │                   │   API     │
    └───────────┘                   └───────────┘                   └───────────┘
          ▲
-         │ Metrics
+         │ 指標
    ┌─────┴─────┐         ┌───────────┐
    │Prometheus │────────►│  Grafana  │
    │   :9090   │         │   :3000   │
    └───────────┘         └───────────┘
 ```
 
-### Service Communication
+### 服務通訊方式
 
-| Communication Type | Technology |
-|-------------------|------------|
-| Service Discovery | Kubernetes DNS (e.g., `http://customers-service:8081`) |
-| Configuration | Kubernetes ConfigMap + Secret |
-| Load Balancing | Kubernetes Service (ClusterIP) |
-| External Access | NGINX Ingress Controller |
-| Circuit Breaker | Resilience4j |
-| Distributed Tracing | Micrometer + Zipkin |
+| 通訊類型 | 技術 |
+|---------|------|
+| 服務發現 | Kubernetes DNS（例如：`http://customers-service:8081`）|
+| 組態管理 | Kubernetes ConfigMap + Secret |
+| 負載平衡 | Kubernetes Service (ClusterIP) |
+| 外部存取 | NGINX Ingress Controller |
+| 斷路器 | Resilience4j |
+| 分散式追蹤 | Micrometer + Zipkin |
 
 ---
 
-## Technology Stack
+## 技術堆疊
 
-| Category | Technology |
-|----------|------------|
-| **Language** | Java 17 |
-| **Framework** | Spring Boot 3.4.1, Spring Cloud 2024.0.0 |
-| **API Gateway** | Spring Cloud Gateway |
-| **Database** | MySQL 8.4.5 / HSQLDB (in-memory) |
-| **Container Runtime** | Docker, containerd |
-| **Orchestration** | Kubernetes (Kind, Minikube, EKS, GKE, AKS) |
-| **Configuration Management** | Kustomize |
+| 類別 | 技術 |
+|------|------|
+| **程式語言** | Java 17 |
+| **框架** | Spring Boot 3.4.1、Spring Cloud 2024.0.0 |
+| **API 閘道** | Spring Cloud Gateway |
+| **資料庫** | MySQL 8.4.5 / HSQLDB（記憶體內）|
+| **容器執行環境** | Docker、containerd |
+| **容器編排** | Kubernetes（Kind、Minikube、EKS、GKE、AKS）|
+| **組態管理** | Kustomize |
 | **Ingress** | NGINX Ingress Controller |
-| **Distributed Tracing** | Micrometer Tracing + Zipkin |
-| **Monitoring** | Prometheus + Grafana |
+| **分散式追蹤** | Micrometer Tracing + Zipkin |
+| **監控** | Prometheus + Grafana |
 | **AI/LLM** | Spring AI + OpenAI / Azure OpenAI |
 | **CI/CD** | GitHub Actions |
 
 ---
 
-## Project Structure
+## 專案結構
 
 ```
 spring-petclinic-on-k8s/
-├── spring-petclinic-api-gateway/       # API Gateway (port 8080)
-├── spring-petclinic-customers-service/ # Customers & Pets management (port 8081)
-├── spring-petclinic-visits-service/    # Visit records management (port 8082)
-├── spring-petclinic-vets-service/      # Veterinarians management (port 8083)
-├── spring-petclinic-genai-service/     # AI Chatbot service (port 8084)
-├── k8s/                                # Kubernetes manifests
-│   ├── base/                           # Base resources (namespace, configmap, secret)
-│   ├── services/                       # Service deployments
+├── spring-petclinic-api-gateway/       # API 閘道（連接埠 8080）
+├── spring-petclinic-customers-service/ # 客戶與寵物管理（連接埠 8081）
+├── spring-petclinic-visits-service/    # 就診紀錄管理（連接埠 8082）
+├── spring-petclinic-vets-service/      # 獸醫師管理（連接埠 8083）
+├── spring-petclinic-genai-service/     # AI 聊天機器人服務（連接埠 8084）
+├── k8s/                                # Kubernetes 資源清單
+│   ├── base/                           # 基礎資源（namespace、configmap、secret）
+│   ├── services/                       # 服務部署
 │   │   ├── api-gateway/
 │   │   ├── customers-service/
 │   │   ├── vets-service/
@@ -109,36 +109,36 @@ spring-petclinic-on-k8s/
 │   │   ├── genai-service/
 │   │   ├── mysql/
 │   │   └── tracing-server/
-│   ├── monitoring/                     # Observability stack
+│   ├── monitoring/                     # 可觀測性堆疊
 │   │   ├── prometheus/
 │   │   └── grafana/
-│   ├── ingress/                        # Ingress configuration
-│   └── overlays/                       # Kustomize overlays
-│       ├── dev/                        # Development environment
-│       ├── staging/                    # Staging environment
-│       └── prod/                       # Production environment
-├── docker-compose.yml                  # Local development with Docker
-├── .github/workflows/                  # CI/CD pipeline
+│   ├── ingress/                        # Ingress 設定
+│   └── overlays/                       # Kustomize 覆蓋層
+│       ├── dev/                        # 開發環境
+│       ├── staging/                    # 預備環境
+│       └── prod/                       # 正式環境
+├── docker-compose.yml                  # Docker 本機開發
+├── .github/workflows/                  # CI/CD 流水線
 │   └── maven-build.yml
-└── docs/                               # Documentation
+└── docs/                               # 文件
     └── k8s-quickstart.md
 ```
 
 ---
 
-## Quick Start
+## 快速開始
 
-### Prerequisites
+### 環境需求
 
-- **Java 17+** and Maven 3.8+
-- **Docker** (for building images)
-- **kubectl** CLI configured
-- **Kind** or other Kubernetes cluster
-- (Optional) **OpenAI API Key** for GenAI service
+- **Java 17+** 與 Maven 3.8+
+- **Docker**（用於建置映像檔）
+- **kubectl** CLI 並已設定好
+- **Kind** 或其他 Kubernetes 叢集
+- （選用）**OpenAI API Key**（供 GenAI 服務使用）
 
-### Deploy to Kubernetes (Recommended)
+### 部署到 Kubernetes（建議方式）
 
-#### 1. Create Kind Cluster
+#### 1. 建立 Kind 叢集
 
 ```bash
 cat <<EOF | kind create cluster --name petclinic --config=-
@@ -162,7 +162,7 @@ nodes:
 EOF
 ```
 
-#### 2. Install NGINX Ingress Controller
+#### 2. 安裝 NGINX Ingress Controller
 
 ```bash
 kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/main/deploy/static/provider/kind/deploy.yaml
@@ -173,10 +173,10 @@ kubectl wait --namespace ingress-nginx \
   --timeout=90s
 ```
 
-#### 3. Build Docker Images
+#### 3. 建置 Docker 映像檔
 
 ```bash
-# Build all service images
+# 建置所有服務映像檔
 ./mvnw clean spring-boot:build-image -pl spring-petclinic-customers-service -DskipTests
 ./mvnw clean spring-boot:build-image -pl spring-petclinic-vets-service -DskipTests
 ./mvnw clean spring-boot:build-image -pl spring-petclinic-visits-service -DskipTests
@@ -184,7 +184,7 @@ kubectl wait --namespace ingress-nginx \
 ./mvnw clean spring-boot:build-image -pl spring-petclinic-genai-service -DskipTests
 ```
 
-#### 4. Load Images into Kind
+#### 4. 載入映像檔到 Kind
 
 ```bash
 kind load docker-image petclinic/customers-service:latest --name petclinic
@@ -194,304 +194,304 @@ kind load docker-image petclinic/api-gateway:latest --name petclinic
 kind load docker-image petclinic/genai-service:latest --name petclinic
 ```
 
-#### 5. Deploy to Kubernetes
+#### 5. 部署到 Kubernetes
 
 ```bash
-# Deploy using dev overlay
+# 使用開發環境覆蓋層部署
 kubectl apply -k k8s/overlays/dev
 
-# Wait for all pods to be ready
+# 等待所有 Pod 就緒
 kubectl wait --namespace petclinic \
   --for=condition=ready pod \
   --all \
   --timeout=300s
 ```
 
-#### 6. Configure /etc/hosts
+#### 6. 設定 /etc/hosts
 
 ```bash
 echo "127.0.0.1 petclinic.local" | sudo tee -a /etc/hosts
 ```
 
-#### 7. Access the Application
+#### 7. 存取應用程式
 
-| Service | URL |
-|---------|-----|
-| Frontend UI | http://petclinic.local/ |
-| Customers API | http://petclinic.local/api/customer/owners |
-| Vets API | http://petclinic.local/api/vet/vets |
-| Visits API | http://petclinic.local/api/visit/pets/visits?petId=1 |
-| Zipkin Tracing | http://petclinic.local/zipkin |
-| Grafana | http://petclinic.local/grafana (admin/admin) |
+| 服務 | 網址 |
+|------|------|
+| 前端 UI | http://petclinic.local/ |
+| 客戶 API | http://petclinic.local/api/customer/owners |
+| 獸醫 API | http://petclinic.local/api/vet/vets |
+| 就診 API | http://petclinic.local/api/visit/pets/visits?petId=1 |
+| Zipkin 追蹤 | http://petclinic.local/zipkin |
+| Grafana | http://petclinic.local/grafana（admin/admin）|
 
-For Prometheus, use port-forward:
+如需存取 Prometheus，請使用 port-forward：
 ```bash
 kubectl port-forward -n petclinic svc/prometheus 9090:9090
-# Access http://localhost:9090
+# 存取 http://localhost:9090
 ```
 
-### Run with Docker Compose
+### 使用 Docker Compose 執行
 
 ```bash
-# Build images
+# 建置映像檔
 ./mvnw clean spring-boot:build-image -DskipTests
 
-# Start all services
+# 啟動所有服務
 docker compose up -d
 
-# Check status
+# 檢查狀態
 docker compose ps
 ```
 
-Access at http://localhost:8080
+存取網址：http://localhost:8080
 
-### Run Locally without Docker
+### 本機執行（不使用 Docker）
 
-Each service can run standalone:
+每個服務都可以獨立執行：
 
 ```bash
-# Start each service in separate terminals
+# 在不同的終端機視窗分別啟動各服務
 cd spring-petclinic-customers-service && ../mvnw spring-boot:run
 cd spring-petclinic-vets-service && ../mvnw spring-boot:run
 cd spring-petclinic-visits-service && ../mvnw spring-boot:run
 cd spring-petclinic-api-gateway && ../mvnw spring-boot:run
 ```
 
-| Service | URL |
-|---------|-----|
-| API Gateway (Frontend) | http://localhost:8080 |
-| Customers Service | http://localhost:8081 |
-| Visits Service | http://localhost:8082 |
-| Vets Service | http://localhost:8083 |
-| GenAI Service | http://localhost:8084 |
+| 服務 | 網址 |
+|------|------|
+| API 閘道（前端）| http://localhost:8080 |
+| 客戶服務 | http://localhost:8081 |
+| 就診服務 | http://localhost:8082 |
+| 獸醫服務 | http://localhost:8083 |
+| GenAI 服務 | http://localhost:8084 |
 
 ---
 
-## Kubernetes Deployment Guide
+## Kubernetes 部署指南
 
-### Kustomize Overlays
+### Kustomize 覆蓋層
 
-The project uses **Kustomize** for environment-specific configurations:
+本專案使用 **Kustomize** 進行環境特定的組態設定：
 
-| Overlay | Description | Command |
-|---------|-------------|---------|
-| `dev` | Development (1 replica, lower resources) | `kubectl apply -k k8s/overlays/dev` |
-| `staging` | Staging (2 replicas) | `kubectl apply -k k8s/overlays/staging` |
-| `prod` | Production (3 replicas, higher resources) | `kubectl apply -k k8s/overlays/prod` |
+| 覆蓋層 | 說明 | 指令 |
+|--------|------|------|
+| `dev` | 開發環境（1 個副本，較低資源）| `kubectl apply -k k8s/overlays/dev` |
+| `staging` | 預備環境（2 個副本）| `kubectl apply -k k8s/overlays/staging` |
+| `prod` | 正式環境（3 個副本，較高資源）| `kubectl apply -k k8s/overlays/prod` |
 
-### Useful kubectl Commands
+### 常用 kubectl 指令
 
 ```bash
-# Check pod status
+# 檢查 Pod 狀態
 kubectl get pods -n petclinic
 
-# View logs
+# 檢視日誌
 kubectl logs -n petclinic deployment/customers-service
 
-# Restart a service
+# 重新啟動服務
 kubectl rollout restart deployment/customers-service -n petclinic
 
-# Scale a service
+# 擴展服務
 kubectl scale deployment/customers-service --replicas=3 -n petclinic
 
-# Delete all resources
+# 刪除所有資源
 kubectl delete -k k8s/overlays/dev
 ```
 
-### Health Checks
+### 健康檢查
 
-All services expose health endpoints:
+所有服務都提供健康檢查端點：
 
 ```bash
-# Liveness probe
+# 存活探測
 curl http://localhost:8081/actuator/health/liveness
 
-# Readiness probe
+# 就緒探測
 curl http://localhost:8081/actuator/health/readiness
 ```
 
 ---
 
-## CI/CD Pipeline
+## CI/CD 流水線
 
-The project uses **GitHub Actions** for CI/CD:
+本專案使用 **GitHub Actions** 進行 CI/CD：
 
-### Workflow: `.github/workflows/maven-build.yml`
+### 工作流程：`.github/workflows/maven-build.yml`
 
-| Trigger | Actions |
-|---------|---------|
-| Push to `main` | Build, Test, Validate K8s manifests, Build & Push Docker images |
-| Pull Request to `main` | Build, Test, Validate K8s manifests |
+| 觸發條件 | 執行動作 |
+|----------|----------|
+| 推送到 `main` | 建置、測試、驗證 K8s 資源清單、建置並推送 Docker 映像檔 |
+| 對 `main` 發起 Pull Request | 建置、測試、驗證 K8s 資源清單 |
 
-### Pipeline Stages
+### 流水線階段
 
-1. **Build & Test**: `mvn -B package`
-2. **Validate K8s Manifests**:
+1. **建置與測試**：`mvn -B package`
+2. **驗證 K8s 資源清單**：
    ```bash
    kubectl kustomize k8s/overlays/dev > /tmp/k8s-dev.yaml
    kubectl apply --dry-run=client -f /tmp/k8s-dev.yaml
    ```
-3. **Build Docker Images**: Using Spring Boot's `build-image` plugin
-4. **Push to GHCR**: Push images to GitHub Container Registry (on main branch)
+3. **建置 Docker 映像檔**：使用 Spring Boot 的 `build-image` 外掛
+4. **推送到 GHCR**：將映像檔推送到 GitHub Container Registry（僅限 main 分支）
 
-### Container Registry
+### 容器映像檔倉庫
 
-Images are published to: `ghcr.io/<owner>/petclinic/<service-name>:latest`
+映像檔發布至：`ghcr.io/<owner>/petclinic/<service-name>:latest`
 
 ---
 
-## Monitoring and Observability
+## 監控與可觀測性
 
-### Distributed Tracing (Zipkin)
+### 分散式追蹤（Zipkin）
 
-All services are instrumented with Micrometer Tracing:
+所有服務都已整合 Micrometer Tracing：
 
-- Access Zipkin UI: http://petclinic.local/zipkin
-- Trace correlation across all microservices
-- Request latency analysis
+- 存取 Zipkin UI：http://petclinic.local/zipkin
+- 跨微服務的追蹤關聯
+- 請求延遲分析
 
-### Metrics (Prometheus + Grafana)
+### 指標監控（Prometheus + Grafana）
 
-**Prometheus** scrapes metrics from all services:
-- JVM metrics (memory, GC, threads)
-- HTTP request metrics
-- Custom business metrics
+**Prometheus** 收集所有服務的指標：
+- JVM 指標（記憶體、GC、執行緒）
+- HTTP 請求指標
+- 自訂業務指標
 
-**Grafana** dashboards available at http://petclinic.local/grafana:
-- Default credentials: admin/admin
-- Pre-configured Prometheus datasource
+**Grafana** 儀表板位於 http://petclinic.local/grafana：
+- 預設帳號密碼：admin/admin
+- 已預先設定 Prometheus 資料來源
 
-### Custom Metrics
+### 自訂指標
 
-| Service | Metrics |
-|---------|---------|
-| customers-service | `petclinic.owner`, `petclinic.pet` |
+| 服務 | 指標 |
+|------|------|
+| customers-service | `petclinic.owner`、`petclinic.pet` |
 | visits-service | `petclinic.visit` |
 
 ---
 
-## GenAI Chatbot Integration
+## GenAI 聊天機器人整合
 
-The GenAI service provides a natural language interface:
+GenAI 服務提供自然語言介面：
 
-### Example Queries
+### 查詢範例
 
-- "List all owners"
-- "Are there any vets that specialize in surgery?"
-- "Add a dog named Max for owner Betty"
-- "Which owners have cats?"
+- 「列出所有飼主」
+- 「有沒有專長外科的獸醫？」
+- 「幫飼主 Betty 新增一隻名叫 Max 的狗」
+- 「哪些飼主有養貓？」
 
-### Configuration
+### 設定
 
-**Offline Mode** (default for K8s deployment):
+**離線模式**（Kubernetes 部署的預設值）：
 ```yaml
 genai:
-  offline-mode: true  # Returns "服務暫時離線" for all requests
+  offline-mode: true  # 所有請求都回傳「服務暫時離線」
 ```
 
-**Online Mode** (requires OpenAI API key):
+**線上模式**（需要 OpenAI API Key）：
 ```bash
 export OPENAI_API_KEY="your_api_key_here"
-# Or for Azure OpenAI:
+# 或使用 Azure OpenAI：
 export AZURE_OPENAI_ENDPOINT="https://your_resource.openai.azure.com"
 export AZURE_OPENAI_KEY="your_api_key_here"
 ```
 
 ---
 
-## API Reference
+## API 參考文件
 
-### Customers Service (port 8081)
+### 客戶服務（連接埠 8081）
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/owners` | List all owners |
-| GET | `/owners/{id}` | Get owner by ID |
-| POST | `/owners` | Create new owner |
-| PUT | `/owners/{id}` | Update owner |
-| GET | `/owners/{id}/pets` | Get owner's pets |
-| POST | `/owners/{id}/pets` | Add pet to owner |
+| 方法 | 端點 | 說明 |
+|------|------|------|
+| GET | `/owners` | 列出所有飼主 |
+| GET | `/owners/{id}` | 依 ID 取得飼主 |
+| POST | `/owners` | 新增飼主 |
+| PUT | `/owners/{id}` | 更新飼主 |
+| GET | `/owners/{id}/pets` | 取得飼主的寵物 |
+| POST | `/owners/{id}/pets` | 為飼主新增寵物 |
 
-### Vets Service (port 8083)
+### 獸醫服務（連接埠 8083）
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/vets` | List all veterinarians |
+| 方法 | 端點 | 說明 |
+|------|------|------|
+| GET | `/vets` | 列出所有獸醫師 |
 
-### Visits Service (port 8082)
+### 就診服務（連接埠 8082）
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/pets/visits?petId={id}` | Get visits for a pet |
-| POST | `/owners/{ownerId}/pets/{petId}/visits` | Create visit |
+| 方法 | 端點 | 說明 |
+|------|------|------|
+| GET | `/pets/visits?petId={id}` | 取得寵物的就診紀錄 |
+| POST | `/owners/{ownerId}/pets/{petId}/visits` | 新增就診紀錄 |
 
-### GenAI Service (port 8084)
+### GenAI 服務（連接埠 8084）
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/chatclient` | Send chat message |
+| 方法 | 端點 | 說明 |
+|------|------|------|
+| POST | `/chatclient` | 傳送聊天訊息 |
 
 ---
 
-## Troubleshooting
+## 疑難排解
 
-### Pods stuck in Pending
+### Pod 停留在 Pending 狀態
 
 ```bash
-# Check if images are loaded
+# 檢查映像檔是否已載入
 docker images | grep petclinic
 kind load docker-image <image-name> --name petclinic
 ```
 
-### Pods in CrashLoopBackOff
+### Pod 處於 CrashLoopBackOff 狀態
 
 ```bash
 kubectl logs -n petclinic <pod-name>
 kubectl describe pod -n petclinic <pod-name>
 ```
 
-### Ingress not working
+### Ingress 無法運作
 
 ```bash
-# Verify Ingress controller is running
+# 確認 Ingress Controller 正在執行
 kubectl get pods -n ingress-nginx
 
-# Check Ingress resource
+# 檢查 Ingress 資源
 kubectl describe ingress -n petclinic
 
-# Verify /etc/hosts entry
+# 確認 /etc/hosts 設定
 cat /etc/hosts | grep petclinic
 ```
 
-### Database connection issues
+### 資料庫連線問題
 
 ```bash
-# Check if MySQL is running
+# 檢查 MySQL 是否正在執行
 kubectl get pods -n petclinic | grep mysql
 kubectl logs -n petclinic deployment/mysql
 ```
 
 ---
 
-## Contributing
+## 貢獻指南
 
-1. Fork the repository
-2. Create a feature branch: `git checkout -b feature/my-feature`
-3. Commit changes: `git commit -m 'Add my feature'`
-4. Push to the branch: `git push origin feature/my-feature`
-5. Open a Pull Request
-
----
-
-## License
-
-This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
+1. Fork 本專案
+2. 建立功能分支：`git checkout -b feature/my-feature`
+3. 提交變更：`git commit -m '新增我的功能'`
+4. 推送到分支：`git push origin feature/my-feature`
+5. 發起 Pull Request
 
 ---
 
-## Acknowledgments
+## 授權條款
 
-- Original [Spring PetClinic Microservices](https://github.com/spring-petclinic/spring-petclinic-microservices)
+本專案採用 Apache License 2.0 授權 - 詳見 [LICENSE](LICENSE) 檔案。
+
+---
+
+## 致謝
+
+- 原版 [Spring PetClinic Microservices](https://github.com/spring-petclinic/spring-petclinic-microservices)
 - [Spring Boot](https://spring.io/projects/spring-boot)
 - [Spring Cloud](https://spring.io/projects/spring-cloud)
 - [Kubernetes](https://kubernetes.io/)
