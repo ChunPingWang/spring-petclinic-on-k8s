@@ -38,7 +38,9 @@
       "Bash(kubectl label:*)",
       "Bash(curl:*)",
       "Bash(kubectl run:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit -m \"$(cat <<''EOF''\nUpdate README.md with comprehensive documentation\n\n- Add detailed architecture diagram with service communication\n- Document technology stack (Java 17, Spring Boot 3.4.1, K8s, etc.)\n- Add complete project structure overview\n- Include step-by-step deployment guide for K8s, Docker Compose, and local\n- Document CI/CD pipeline with GitHub Actions\n- Add monitoring and observability section (Prometheus, Grafana, Zipkin)\n- Include GenAI chatbot integration guide\n- Add API reference for all services\n- Include troubleshooting section\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(git commit:*)"
     ],
     "deny": [],
     "ask": []
