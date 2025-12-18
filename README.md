@@ -20,6 +20,7 @@
 - [Kubernetes 部署指南](#kubernetes-部署指南)
 - [CI/CD 流水線](#cicd-流水線)
 - [監控與可觀測性](#監控與可觀測性)
+- [Design by Contract（契約式設計）](#design-by-contract契約式設計)
 - [GenAI 聊天機器人整合](#genai-聊天機器人整合)
 - [API 參考文件](#api-參考文件)
 - [疑難排解](#疑難排解)
@@ -78,6 +79,7 @@
 | **程式語言** | Java 17 |
 | **框架** | Spring Boot 3.4.1、Spring Cloud 2024.0.0 |
 | **API 閘道** | Spring Cloud Gateway |
+| **契約測試** | Spring Cloud Contract 4.2.x |
 | **資料庫** | MySQL 8.4.5 / HSQLDB（記憶體內）|
 | **容器執行環境** | Docker、containerd |
 | **容器編排** | Kubernetes（Kind、Minikube、EKS、GKE、AKS）|
@@ -390,6 +392,164 @@ curl http://localhost:8081/actuator/health/readiness
 |------|------|
 | customers-service | `petclinic.owner`、`petclinic.pet` |
 | visits-service | `petclinic.visit` |
+
+---
+
+## Design by Contract（契約式設計）
+
+本專案採用 **Spring Cloud Contract** 實現 Consumer-Driven Contract (CDC) 測試模式，確保微服務間 API 契約的一致性，防止因 API 變更導致的整合問題。
+
+### 什麼是 Design by Contract？
+
+Design by Contract 是一種軟體設計方法，透過明確定義組件之間的「契約」（Contract），確保：
+- **Producer**（API 提供者）承諾提供符合契約的回應
+- **Consumer**（API 消費者）期望收到符合契約的回應
+- 任何破壞契約的變更都會在 CI/CD 階段被自動偵測
+
+### 服務角色
+
+| 服務 | 角色 | 說明 |
+|------|------|------|
+| customers-service | Producer | 提供 Owner、Pet、PetType API |
+| vets-service | Producer | 提供 Vet API |
+| visits-service | Producer | 提供 Visit API |
+| api-gateway | Consumer | 呼叫其他服務進行資料聚合 |
+
+### 契約涵蓋範圍
+
+本專案定義了以下 API 契約：
+
+**Customers Service（12 個契約）**
+- `GET /owners/{id}` - 取得單一飼主
+- `GET /owners` - 取得所有飼主
+- `POST /owners` - 新增飼主
+- `PUT /owners/{id}` - 更新飼主
+- `GET /owners/{id}/pets/{petId}` - 取得寵物詳情
+- `POST /owners/{id}/pets` - 新增寵物
+- `GET /petTypes` - 取得所有寵物類型
+
+**Vets Service（1 個契約）**
+- `GET /vets` - 取得所有獸醫師
+
+**Visits Service（3 個契約）**
+- `POST /owners/*/pets/{petId}/visits` - 新增就診紀錄
+- `GET /owners/*/pets/{petId}/visits` - 取得寵物就診紀錄
+- `GET /pets/visits?petId=...` - 批次取得多隻寵物的就診紀錄
+
+### 契約測試工作流程
+
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                    Consumer-Driven Contract Testing                      │
+└─────────────────────────────────────────────────────────────────────────┘
+
+1. 定義契約（Contract Definition）
+   └─> src/test/resources/contracts/*.groovy
+
+2. Producer 驗證（Producer Verification）
+   └─> 自動產生測試，驗證 API 符合契約
+
+3. 產生 Stubs（Stub Generation）
+   └─> 產生 WireMock stubs 供 Consumer 使用
+
+4. Consumer 測試（Consumer Testing）
+   └─> 使用 stubs 進行整合測試
+```
+
+### 快速開始
+
+#### 1. 執行 Producer 契約測試
+
+```bash
+# 執行 customers-service 契約測試
+./mvnw clean test -pl spring-petclinic-customers-service
+
+# 執行 vets-service 契約測試
+./mvnw clean test -pl spring-petclinic-vets-service
+
+# 執行 visits-service 契約測試
+./mvnw clean test -pl spring-petclinic-visits-service
+```
+
+#### 2. 產生並安裝 Stubs
+
+```bash
+# 產生 stubs 並安裝到本地 Maven 倉庫
+./mvnw clean install -pl spring-petclinic-customers-service,spring-petclinic-vets-service,spring-petclinic-visits-service
+```
+
+#### 3. 執行 Consumer 契約測試
+
+```bash
+# 執行 api-gateway 契約測試（使用 stubs）
+./mvnw clean test -pl spring-petclinic-api-gateway
+```
+
+### 契約 DSL 範例
+
+以下是 `GET /owners/{id}` 的契約定義範例（Groovy DSL）：
+
+```groovy
+import org.springframework.cloud.contract.spec.Contract
+
+Contract.make {
+    description "Should return owner by ID"
+
+    request {
+        method GET()
+        url '/owners/1'
+        headers {
+            accept(applicationJson())
+        }
+    }
+
+    response {
+        status OK()
+        headers {
+            contentType(applicationJson())
+        }
+        body([
+            id: 1,
+            firstName: $(consumer('George'), producer(regex('[a-zA-Z]+'))),
+            lastName: $(consumer('Franklin'), producer(regex('[a-zA-Z]+'))),
+            address: $(consumer('110 W. Liberty St.'), producer(regex('.+'))),
+            city: $(consumer('Madison'), producer(regex('[a-zA-Z ]+'))),
+            telephone: $(consumer('6085551023'), producer(regex('[0-9]{10}'))),
+            pets: []
+        ])
+    }
+}
+```
+
+### 專案結構
+
+```
+spring-petclinic-customers-service/
+├── src/test/resources/contracts/
+│   ├── owners/                          # Owner API 契約
+│   │   ├── shouldReturnOwnerById.groovy
+│   │   ├── shouldCreateOwner.groovy
+│   │   └── shouldReturn404WhenNotFound.groovy
+│   └── pets/                            # Pet API 契約
+│       └── shouldReturnPetTypes.groovy
+└── src/test/java/.../contracts/
+    ├── OwnersBase.java                  # Owner 契約測試基礎類別
+    └── PetsBase.java                    # Pet 契約測試基礎類別
+```
+
+### CI/CD 整合
+
+契約測試已整合到 CI/CD 流水線中：
+
+1. **Pull Request 階段**：執行所有 Producer 契約測試
+2. **合併到 main 階段**：產生並發布 stubs
+3. **部署前驗證**：Consumer 使用最新 stubs 執行測試
+
+### 進一步閱讀
+
+- [Spring Cloud Contract 官方文件](https://docs.spring.io/spring-cloud-contract/reference/)
+- [Consumer-Driven Contracts 介紹](https://martinfowler.com/articles/consumerDrivenContracts.html)
+- [本專案契約定義](specs/002-k8s-migration/contracts/spring-cloud-contract/)
 
 ---
 

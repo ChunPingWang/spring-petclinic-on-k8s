@@ -245,4 +245,225 @@ spec:
 
 ---
 
-**Version**: 1.0 | **Status**: Complete
+## Contract Testing Data Model
+
+### Overview
+
+本節定義 Spring Cloud Contract 所需的 API 契約資料模型，涵蓋三個 Producer Services 和一個 Consumer Service。
+
+---
+
+### Contract Directory Structure
+
+```
+src/test/resources/contracts/
+├── owners/                           # Customers Service - Owner API
+│   ├── shouldReturnOwnerById.groovy
+│   ├── shouldReturnAllOwners.groovy
+│   ├── shouldCreateOwner.groovy
+│   ├── shouldUpdateOwner.groovy
+│   └── shouldReturn404WhenOwnerNotFound.groovy
+├── pets/                             # Customers Service - Pet API
+│   ├── shouldReturnPetTypes.groovy
+│   ├── shouldReturnPetById.groovy
+│   ├── shouldCreatePet.groovy
+│   └── shouldUpdatePet.groovy
+├── vets/                             # Vets Service
+│   └── shouldReturnAllVets.groovy
+└── visits/                           # Visits Service
+    ├── shouldCreateVisit.groovy
+    ├── shouldReturnVisitsForPet.groovy
+    └── shouldReturnVisitsForMultiplePets.groovy
+```
+
+---
+
+### Contract Data Models
+
+#### Owner Contract Model
+
+```json
+{
+  "id": 1,
+  "firstName": "George",
+  "lastName": "Franklin",
+  "address": "110 W. Liberty St.",
+  "city": "Madison",
+  "telephone": "6085551023",
+  "pets": [
+    {
+      "id": 1,
+      "name": "Leo",
+      "birthDate": "2020-01-01",
+      "type": {
+        "id": 1,
+        "name": "cat"
+      }
+    }
+  ]
+}
+```
+
+**Field Matchers**:
+| Field | Consumer Value | Producer Matcher |
+|-------|----------------|------------------|
+| id | 1 | `regex('[0-9]+')` |
+| firstName | George | `regex('[a-zA-Z]+')` |
+| lastName | Franklin | `regex('[a-zA-Z]+')` |
+| telephone | 6085551023 | `regex('[0-9]{10}')` |
+| birthDate | 2020-01-01 | `regex('\\d{4}-\\d{2}-\\d{2}')` |
+
+#### OwnerRequest Contract Model
+
+```json
+{
+  "firstName": "John",
+  "lastName": "Doe",
+  "address": "123 Main St",
+  "city": "Springfield",
+  "telephone": "5551234567"
+}
+```
+
+---
+
+#### Pet Contract Model
+
+```json
+{
+  "id": 1,
+  "name": "Leo",
+  "birthDate": "2020-01-01",
+  "type": {
+    "id": 1,
+    "name": "cat"
+  }
+}
+```
+
+#### PetType Contract Model
+
+```json
+{
+  "id": 1,
+  "name": "cat"
+}
+```
+
+**Available PetTypes**:
+| ID | Name |
+|----|------|
+| 1 | cat |
+| 2 | dog |
+| 3 | lizard |
+| 4 | snake |
+| 5 | bird |
+| 6 | hamster |
+
+---
+
+#### Vet Contract Model
+
+```json
+{
+  "id": 1,
+  "firstName": "James",
+  "lastName": "Carter",
+  "specialties": [
+    {
+      "id": 1,
+      "name": "radiology"
+    }
+  ]
+}
+```
+
+---
+
+#### Visit Contract Model
+
+```json
+{
+  "id": 1,
+  "date": "2025-12-19",
+  "description": "annual checkup",
+  "petId": 1
+}
+```
+
+#### Visits (Batch Response) Contract Model
+
+```json
+{
+  "items": [
+    {
+      "id": 1,
+      "date": "2025-12-19",
+      "description": "annual checkup",
+      "petId": 1
+    }
+  ]
+}
+```
+
+---
+
+### API Gateway Contract Model (Consumer)
+
+API Gateway 作為 Consumer，使用其他服務的 stubs 進行測試。
+
+#### OwnerDetails (Aggregated Response)
+
+```json
+{
+  "id": 1,
+  "firstName": "George",
+  "lastName": "Franklin",
+  "address": "110 W. Liberty St.",
+  "city": "Madison",
+  "telephone": "6085551023",
+  "pets": [
+    {
+      "id": 1,
+      "name": "Leo",
+      "birthDate": "2020-01-01",
+      "type": {
+        "name": "cat"
+      },
+      "visits": [
+        {
+          "id": 1,
+          "petId": 1,
+          "date": "2025-12-19",
+          "description": "annual checkup"
+        }
+      ]
+    }
+  ]
+}
+```
+
+---
+
+### Contract Test Base Classes
+
+| Contract Directory | Base Class | Package |
+|-------------------|------------|---------|
+| owners/* | OwnersBase | `o.s.s.p.customers.contracts` |
+| pets/* | PetsBase | `o.s.s.p.customers.contracts` |
+| vets/* | VetsBase | `o.s.s.p.vets.contracts` |
+| visits/* | VisitsBase | `o.s.s.p.visits.contracts` |
+
+---
+
+### Stub Artifact Coordinates
+
+| Service | Group ID | Artifact ID | Classifier |
+|---------|----------|-------------|------------|
+| customers-service | `org.springframework.samples.petclinic.client` | `spring-petclinic-customers-service` | `stubs` |
+| vets-service | `org.springframework.samples.petclinic.vets` | `spring-petclinic-vets-service` | `stubs` |
+| visits-service | `org.springframework.samples.petclinic.visits` | `spring-petclinic-visits-service` | `stubs` |
+
+---
+
+**Version**: 1.1 | **Status**: Complete (Updated with Contract Testing)
