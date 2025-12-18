@@ -241,4 +241,212 @@ k8s/
 
 ---
 
-**Version**: 1.0 | **Status**: Research Complete
+## 6. Design by Contract: Spring Cloud Contract
+
+### Decision
+導入 **Spring Cloud Contract** 實現 Consumer-Driven Contract (CDC) 測試模式。
+
+### Rationale
+- Spring Cloud Contract 是 Spring Cloud 生態系統原生方案，與 Spring Boot 3.4.1 完全相容
+- 自動產生 Producer 測試和 Consumer 可用的 WireMock stubs
+- 確保微服務間 API 契約一致性，防止破壞性變更
+- 遵循 Constitution 中的 TDD 原則和 Contract Tests 要求
+
+### Version Compatibility
+
+| 元件 | 版本 |
+|------|------|
+| Spring Boot | 3.4.1 |
+| Spring Cloud | 2024.0.0 (Moorgate) |
+| Spring Cloud Contract | 4.2.x (由 BOM 管理) |
+
+### Implementation
+
+#### Producer Service Dependencies (customers, vets, visits)
+
+```xml
+<dependencies>
+    <dependency>
+        <groupId>org.springframework.cloud</groupId>
+        <artifactId>spring-cloud-starter-contract-verifier</artifactId>
+        <scope>test</scope>
+    </dependency>
+    <dependency>
+        <groupId>io.rest-assured</groupId>
+        <artifactId>spring-mock-mvc</artifactId>
+        <scope>test</scope>
+    </dependency>
+</dependencies>
+
+<build>
+    <plugins>
+        <plugin>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-contract-maven-plugin</artifactId>
+            <extensions>true</extensions>
+            <configuration>
+                <testFramework>JUNIT5</testFramework>
+                <packageWithBaseClasses>
+                    org.springframework.samples.petclinic.{service}.contracts
+                </packageWithBaseClasses>
+            </configuration>
+        </plugin>
+    </plugins>
+</build>
+```
+
+#### Consumer Service Dependencies (api-gateway)
+
+```xml
+<dependencies>
+    <dependency>
+        <groupId>org.springframework.cloud</groupId>
+        <artifactId>spring-cloud-starter-contract-stub-runner</artifactId>
+        <scope>test</scope>
+    </dependency>
+</dependencies>
+```
+
+#### Contract DSL Example (Groovy)
+
+```groovy
+// src/test/resources/contracts/owners/shouldReturnOwnerById.groovy
+import org.springframework.cloud.contract.spec.Contract
+
+Contract.make {
+    description "Should return owner by ID"
+
+    request {
+        method GET()
+        url '/owners/1'
+        headers {
+            accept(applicationJson())
+        }
+    }
+
+    response {
+        status OK()
+        headers {
+            contentType(applicationJson())
+        }
+        body([
+            id: 1,
+            firstName: $(consumer('George'), producer(regex('[a-zA-Z]+'))),
+            lastName: $(consumer('Franklin'), producer(regex('[a-zA-Z]+'))),
+            pets: []
+        ])
+    }
+}
+```
+
+#### Contract Directory Structure
+
+```
+src/test/resources/contracts/
+├── owners/           → OwnersBase.java
+│   ├── shouldReturnOwnerById.groovy
+│   ├── shouldCreateOwner.groovy
+│   └── shouldReturn404WhenNotFound.groovy
+├── pets/             → PetsBase.java
+│   └── shouldReturnPetTypes.groovy
+└── visits/           → VisitsBase.java
+    └── shouldCreateVisit.groovy
+```
+
+#### Base Test Class Example
+
+```java
+package org.springframework.samples.petclinic.customers.contracts;
+
+import io.restassured.module.mockmvc.RestAssuredMockMvc;
+import org.junit.jupiter.api.BeforeEach;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.web.context.WebApplicationContext;
+
+@SpringBootTest
+public class OwnersBase {
+
+    @Autowired
+    private WebApplicationContext context;
+
+    @MockBean
+    private OwnerRepository ownerRepository;
+
+    @BeforeEach
+    public void setup() {
+        RestAssuredMockMvc.webAppContextSetup(context);
+        // Setup mock data for contract tests
+        Owner owner = new Owner();
+        owner.setId(1);
+        owner.setFirstName("George");
+        owner.setLastName("Franklin");
+        when(ownerRepository.findById(1)).thenReturn(Optional.of(owner));
+    }
+}
+```
+
+### CDC Flow
+
+```
+1. Consumer 定義需求 → 2. 建立 Contract → 3. Producer 實作
+                              ↓
+                        4. 自動產生測試
+                              ↓
+                        5. 發布 Stubs (-stubs.jar)
+                              ↓
+                        6. Consumer 使用 Stubs 測試
+```
+
+### Contract Coverage Plan
+
+| 服務 | 優先級 | Contracts 數量 |
+|------|--------|----------------|
+| customers-service | P1 | 12 (owners: 6, pets: 6) |
+| visits-service | P1 | 6 |
+| vets-service | P2 | 2 |
+| api-gateway (consumer) | P2 | Uses stubs |
+
+### Alternatives Considered
+
+| Approach | 採用原因 |
+|----------|---------|
+| Spring Cloud Contract ✅ | Spring 原生，與 Boot 3.4 完全整合 |
+| Pact | 需要額外 Pact Broker 基礎設施 |
+| OpenAPI Validator | 僅驗證 schema，無法產生 stub |
+| WireMock Standalone | 需要手動維護 stub，無法自動驗證 |
+
+### CI/CD Integration
+
+```yaml
+# GitHub Actions workflow
+name: Contract Tests
+on: [push, pull_request]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions/setup-java@v3
+        with:
+          java-version: '17'
+      - name: Run Contract Tests
+        run: ./mvnw clean verify
+      - name: Publish Stubs
+        if: github.ref == 'refs/heads/main'
+        run: ./mvnw deploy -DskipTests
+```
+
+### Risk Mitigation
+
+| Risk | Mitigation |
+|------|-----------|
+| Contract 維護成本 | 僅針對關鍵 API 建立 contract |
+| Base class 複雜 | 使用 package convention 自動對應 |
+| Stub 版本不一致 | CI/CD 自動發布，開發使用 + 取最新 |
+
+---
+
+**Version**: 1.1 | **Status**: Research Complete (Updated with Spring Cloud Contract)
