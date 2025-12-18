@@ -279,6 +279,29 @@ cd spring-petclinic-api-gateway && ../mvnw spring-boot:run
 | `staging` | 預備環境（2 個副本）| `kubectl apply -k k8s/overlays/staging` |
 | `prod` | 正式環境（3 個副本，較高資源）| `kubectl apply -k k8s/overlays/prod` |
 
+### 快速啟動/停止腳本
+
+本專案提供便利的腳本來快速啟動或停止所有服務：
+
+```bash
+# 停止所有服務（將副本數縮放至 0）
+./scripts/k8s-stop.sh
+
+# 啟動所有服務（將副本數恢復至 1）
+./scripts/k8s-start.sh
+
+# 指定副本數啟動
+REPLICAS=2 ./scripts/k8s-start.sh
+
+# 指定不同的 namespace
+NAMESPACE=petclinic-staging ./scripts/k8s-start.sh
+```
+
+| 腳本 | 說明 |
+|------|------|
+| `scripts/k8s-start.sh` | 啟動所有服務，等待 Pod 就緒 |
+| `scripts/k8s-stop.sh` | 停止所有服務（保留部署配置）|
+
 ### 常用 kubectl 指令
 
 ```bash
